@@ -80,13 +80,17 @@ enum Theme {
 
     /// Typography styles for the app.
     enum Typography {
-        static let terminalFont = "SF Mono"
+        /// PostScript name of the bundled terminal font (see `Resources/Fonts/FiraCode-Regular.ttf`
+        /// and the `UIAppFonts` entries in `Info.plist`). Must match the font's PostScript name
+        /// exactly or `Font.custom` silently falls back to the system font.
+        static let terminalFont = "FiraCode-Regular"
         static let terminalFontFallback = "Menlo"
         static let uiFont = "SF Pro Display"
 
         static func terminal(size: CGFloat) -> Font {
+            // No `.monospaced()` modifier: it's redundant for an already-monospaced custom font
+            // (FiraCode), and it requests the system monospaced *design* rather than our bundled face.
             Font.custom(self.terminalFont, size: size)
-                .monospaced()
         }
 
         static func terminalSystem(size: CGFloat) -> Font {

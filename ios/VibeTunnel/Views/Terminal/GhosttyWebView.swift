@@ -76,6 +76,7 @@ struct GhosttyWebView: UIViewRepresentable {
 
             let themeJSON = self.makeThemeJSON(self.parent.theme)
             let fontFamilyJSON = self.makeFontFamilyJSON()
+            let fontFaceCSS = self.makeFontFaceCSS()
             let disableInput = self.parent.disableInput ? "true" : "false"
 
             let html = """
@@ -84,6 +85,7 @@ struct GhosttyWebView: UIViewRepresentable {
             <head>
                 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">
                 <style>
+                    \(fontFaceCSS)
                     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
                     body { background: transparent; -webkit-user-select: none; -webkit-touch-callout: none; }
                     #terminal { width: 100vw; height: 100vh; }
@@ -118,8 +120,24 @@ struct GhosttyWebView: UIViewRepresentable {
                         }
                     }
 
+                    async function ensureFontLoaded() {
+                        // The terminal renders to a canvas, which only picks up a web font once it
+                        // has actually loaded. Force-load the primary family before first draw so
+                        // glyphs aren't measured/rendered with the fallback face.
+                        try {
+                            if (document.fonts && document.fonts.load) {
+                                const primary = fontFamily.split(',')[0].trim();
+                                await document.fonts.load(initialFontSize + 'px \"' + primary + '\"');
+                                await document.fonts.ready;
+                            }
+                        } catch (e) {
+                            post('terminalLog', 'font preload failed: ' + e);
+                        }
+                    }
+
                     async function initTerminal() {
                         try {
+                            await ensureFontLoaded();
                             const ghostty = await loadGhostty();
                             term = new GhosttyWeb.Terminal({
                                 cols: 80,
@@ -389,6 +407,29 @@ struct GhosttyWebView: UIViewRepresentable {
         private func makeFontFamilyJSON() -> String {
             let fontFamily = "\(Theme.Typography.terminalFont), \(Theme.Typography.terminalFontFallback), monospace"
             return self.jsonString(fontFamily) ?? "\"monospace\""
+        }
+
+        /// Builds a `@font-face` rule that embeds the bundled FiraCode font as a base64 data URL,
+        /// so the WKWebView terminal renders in the same font as the rest of the app. The webview
+        /// loads from the `ghostty` resource directory, so we inline the font rather than rely on a
+        /// relative URL. Falls back to an empty string (system monospace) if the font is missing.
+        private func makeFontFaceCSS() -> String {
+            guard let url = Bundle.main.url(forResource: "FiraCode-Regular", withExtension: "ttf"),
+                  let data = try? Data(contentsOf: url)
+            else {
+                self.logger.error("FiraCode-Regular.ttf missing from bundle; terminal falls back to system monospace")
+                return ""
+            }
+
+            let base64 = data.base64EncodedString()
+            return """
+            @font-face {
+                font-family: '\(Theme.Typography.terminalFont)';
+                font-style: normal;
+                font-weight: 400;
+                src: url(data:font/ttf;base64,\(base64)) format('truetype');
+            }
+            """
         }
 
         private func jsonString<T: Encodable>(_ value: T) -> String? {
