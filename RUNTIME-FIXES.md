@@ -72,9 +72,8 @@ layers, matching the "×2") and `SettingsView` (×1). Those in-app logos were al
   `ios/VibeTunnel/Views/Settings/SettingsView.swift` (1).
 
 **Verify on Mac**: warning gone; the Welcome and Settings screens now show the app logo.
-**Note (out of scope, flag for Matthias)**: the existing `AppIcon.png` is RGBA (has alpha). App Store
-submission rejects app icons with an alpha channel — flatten it before release. Does not affect the
-runtime warning above.
+**Note**: the existing `AppIcon.png` is RGBA (has alpha). Irrelevant for personal/dev installs
+(only App Store submission rejects alpha). Does not affect the runtime warning above.
 
 ## 3. Keyboard input-accessory constraint conflict — P2
 
