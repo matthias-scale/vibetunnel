@@ -444,7 +444,7 @@ struct AboutSettingsView: View {
         VStack(spacing: Theme.Spacing.xlarge) {
             // App icon and info
             VStack(spacing: Theme.Spacing.large) {
-                Image("AppIcon")
+                Image("AppIconImage")
                     .resizable()
                     .frame(width: 100, height: 100)
                     .cornerRadius(22)
