@@ -497,7 +497,7 @@ struct TerminalView: View {
 
             Text("Connecting to session...")
                 .font(Theme.Typography.terminalSystem(size: 14))
-                .foregroundColor(Theme.Colors.terminalForeground)
+                .foregroundColor(self.selectedTheme.foreground)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -510,18 +510,23 @@ struct TerminalView: View {
 
             Text("Connection Error")
                 .font(.headline)
-                .foregroundColor(Theme.Colors.terminalForeground)
+                .foregroundColor(self.selectedTheme.foreground)
 
             Text(error)
                 .font(Theme.Typography.terminalSystem(size: 12))
-                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                .foregroundColor(self.selectedTheme.foreground.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
             Button("Retry") {
                 self.viewModel.connect()
             }
-            .terminalButton()
+            .font(Theme.Typography.terminalSystem(size: 14))
+            .foregroundColor(self.selectedTheme.foreground)
+            .padding(.horizontal, Theme.Spacing.large)
+            .padding(.vertical, Theme.Spacing.medium)
+            .background(Theme.Colors.primaryAccent.opacity(0.25))
+            .cornerRadius(Theme.CornerRadius.medium)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
