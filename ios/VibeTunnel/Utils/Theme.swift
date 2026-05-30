@@ -23,9 +23,9 @@ enum Theme {
         /// Accent colors (same for both modes)
         static let primaryAccent = Color(hex: "007AFF") // iOS system blue
         static let secondaryAccent = Color(hex: "59C2FF")
-        static let successAccent = Color(hex: "AAD94C")
-        static let warningAccent = Color(hex: "FFB454")
-        static let errorAccent = Color(hex: "F07178")
+        static let successAccent = Color(light: Color(hex: "3F8B00"), dark: Color(hex: "AAD94C"))
+        static let warningAccent = Color(light: Color(hex: "B25E00"), dark: Color(hex: "FFB454"))
+        static let errorAccent = Color(light: Color(hex: "C0392B"), dark: Color(hex: "F07178"))
 
         /// Selection colors
         static let terminalSelection = Color(light: Color(hex: "E1E4E8"), dark: Color(hex: "273747"))
@@ -34,7 +34,8 @@ enum Theme {
         static let overlayBackground = Color(light: Color.black.opacity(0.5), dark: Color.black.opacity(0.7))
 
         /// Additional UI colors
-        static let secondaryText = Color(light: Color(hex: "6E7781"), dark: Color(hex: "8B949E"))
+        static let secondaryText = Color(light: Color(hex: "57606A"), dark: Color(hex: "8B949E"))
+        static let tertiaryText = Color(light: Color(hex: "6E7781"), dark: Color(hex: "7D8590"))
         static let secondaryBackground = Color(light: Color(hex: "F6F8FA"), dark: Color(hex: "161B22"))
         static let success = successAccent
         static let error = errorAccent
