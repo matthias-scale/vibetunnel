@@ -75,9 +75,12 @@ struct ServerConfig: Codable, Equatable {
             formattedHost = "[\(formattedHost)]"
         }
 
-        // This should always succeed with valid host and port
-        // Fallback ensures we always have a valid URL
-        return URL(string: "http://\(formattedHost):\(port)") ?? URL(fileURLWithPath: "/")
+        // Use HTTPS (and thus wss for sockets) when the server advertises TLS and
+        // SSL is preferred — including on an explicit non-443 port (e.g. a tailscale
+        // serve HTTPS mapping). Defaults to http when httpsAvailable is false.
+        // Fallback ensures we always have a valid URL.
+        let scheme = (self.httpsAvailable && self.preferSSL) ? "https" : "http"
+        return URL(string: "\(scheme)://\(formattedHost):\(port)") ?? URL(fileURLWithPath: "/")
     }
 
     /// User-friendly display name for the server.
