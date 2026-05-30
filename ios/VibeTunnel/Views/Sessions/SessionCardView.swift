@@ -92,7 +92,7 @@ struct SessionCardView: View {
 
                                     Text("Exit code: \(self.session.exitCode ?? 0)")
                                         .font(Theme.Typography.terminalSystem(size: 10))
-                                        .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
+                                        .foregroundColor(Theme.Colors.tertiaryText)
                                 }
                                 .padding(Theme.Spacing.small)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -112,7 +112,7 @@ struct SessionCardView: View {
                             .font(Theme.Typography.terminalSystem(size: 10))
                             .foregroundColor(
                                 self.session.isRunning ? Theme.Colors.successAccent : Theme.Colors
-                                    .terminalForeground.opacity(0.5))
+                                    .tertiaryText)
 
                         // Live preview indicator
                         if self.session.isRunning, self.livePreview?.latestSnapshot != nil {
@@ -139,7 +139,7 @@ struct SessionCardView: View {
                     if self.session.isRunning, let pid = session.pid {
                         Text("PID: \(pid)")
                             .font(Theme.Typography.terminalSystem(size: 10))
-                            .foregroundColor(Theme.Colors.terminalForeground.opacity(0.5))
+                            .foregroundColor(Theme.Colors.tertiaryText)
                             .onTapGesture {
                                 UIPasteboard.general.string = String(pid)
                                 HapticFeedback.notification(.success)
@@ -244,7 +244,7 @@ struct SessionCardView: View {
 
             Text(self.displayWorkingDir)
                 .font(Theme.Typography.terminalSystem(size: 10))
-                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
+                .foregroundColor(Theme.Colors.tertiaryText)
                 .lineLimit(1)
                 .onTapGesture {
                     UIPasteboard.general.string = self.session.workingDir

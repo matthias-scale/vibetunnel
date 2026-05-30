@@ -202,7 +202,7 @@ struct SessionListView: View {
 
                 Text("Create a new terminal session to get started")
                     .font(Theme.Typography.terminalSystem(size: 14))
-                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                    .foregroundColor(Theme.Colors.tertiaryText)
                     .multilineTextAlignment(.center)
             }
 
@@ -236,7 +236,7 @@ struct SessionListView: View {
 
                 Text("Try searching with different keywords")
                     .font(Theme.Typography.terminalSystem(size: 14))
-                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                    .foregroundColor(Theme.Colors.tertiaryText)
             }
 
             Button(action: { self.viewModel.searchText = "" }, label: {
@@ -328,7 +328,7 @@ struct SessionListView: View {
 
                 Text("Unable to load sessions while offline")
                     .font(Theme.Typography.terminalSystem(size: 14))
-                    .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                    .foregroundColor(Theme.Colors.tertiaryText)
                     .multilineTextAlignment(.center)
             }
 
@@ -562,7 +562,7 @@ struct SessionCountBadge: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(self.label)
                 .font(Theme.Typography.terminalSystem(size: 12))
-                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.6))
+                .foregroundColor(Theme.Colors.tertiaryText)
                 .textCase(.uppercase)
 
             Text("\(self.count)")
