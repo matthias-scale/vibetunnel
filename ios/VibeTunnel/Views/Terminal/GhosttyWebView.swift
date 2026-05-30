@@ -1,3 +1,4 @@
+import ObjectiveC
 import SwiftUI
 import WebKit
 
@@ -45,6 +46,9 @@ struct GhosttyWebView: UIViewRepresentable {
         context.coordinator.updateTheme(self.theme)
         context.coordinator.updateTerminalSize(self.terminalSize)
         context.coordinator.requestFit()
+        // Idempotent safety net: if the content view wasn't attached yet at didFinish, install the
+        // input-accessory suppression on a later SwiftUI update (cheap; reuses the cached subclass).
+        webView.vt_suppressInputAccessoryView()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -305,6 +309,10 @@ struct GhosttyWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             self.logger.info("Ghostty terminal page loaded")
+            // Drop WebKit's default input-accessory bar now that the content view exists.
+            // VibeTunnel supplies its own TerminalToolbar, so the system bar is redundant and is
+            // the source of the `_UIKBCompatInputView` / `TUIKeyboardContentView` layout conflict.
+            webView.vt_suppressInputAccessoryView()
         }
 
         func updateTerminalSize(_ size: TerminalSize?) {
@@ -436,6 +444,59 @@ struct GhosttyWebView: UIViewRepresentable {
             guard let data = try? JSONEncoder().encode(value) else { return nil }
             return String(data: data, encoding: .utf8)
         }
+    }
+}
+
+extension WKWebView {
+    /// Suppresses the system input-accessory view (the QuickType/format bar) that WebKit attaches
+    /// to its internal `WKContentView` whenever a web text field is focused.
+    ///
+    /// The terminal supplies its own `TerminalToolbar`, so the default bar is redundant. Its
+    /// presence is what triggers the repeated
+    /// `Unable to simultaneously satisfy constraints … _UIKBCompatInputView … TUIKeyboardContentView`
+    /// log noise when the keyboard animates in. WebKit exposes no public API to disable the bar, so
+    /// we retarget the content view to a generated subclass whose `inputAccessoryView` returns nil.
+    /// Idempotent: re-running reuses the generated subclass.
+    func vt_suppressInputAccessoryView() {
+        // The WKContentView is normally a direct subview of the scroll view, but search the whole
+        // web-view subtree to be robust to WebKit nesting it differently across iOS versions.
+        guard let contentView = Self.vt_findContentView(in: self) else { return }
+
+        let baseClass: AnyClass = type(of: contentView)
+        let subclassName = "\(NSStringFromClass(baseClass))_VTNoInputAccessory"
+
+        if let existing = NSClassFromString(subclassName) {
+            object_setClass(contentView, existing)
+            return
+        }
+
+        guard let subclass = objc_allocateClassPair(baseClass, subclassName, 0) else { return }
+        let selector = #selector(getter: UIResponder.inputAccessoryView)
+        let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        let imp = imp_implementationWithBlock(block)
+        // Fall back to a hand-written encoding ("@@:" — object return, self + _cmd) if the base
+        // class doesn't already declare the getter, so a nil encoding can't silently no-op the add.
+        let typeEncoding = class_getInstanceMethod(baseClass, selector)
+            .flatMap { method_getTypeEncoding($0) }
+        let added = "@@:".withCString { fallback in
+            class_addMethod(subclass, selector, imp, typeEncoding ?? fallback)
+        }
+        guard added else {
+            // Don't register/swap to a subclass that failed to override the getter — it would be
+            // cached by the fast path above and forever re-applied as a no-op.
+            objc_disposeClassPair(subclass)
+            return
+        }
+        objc_registerClassPair(subclass)
+        object_setClass(contentView, subclass)
+    }
+
+    private static func vt_findContentView(in view: UIView) -> UIView? {
+        if String(describing: type(of: view)).hasPrefix("WKContentView") { return view }
+        for subview in view.subviews {
+            if let match = vt_findContentView(in: subview) { return match }
+        }
+        return nil
     }
 }
 
