@@ -146,7 +146,7 @@ platform :ios do
         scheme: "VibeTunnel-iOS",
         configuration: "Release",
         clean: true,
-        export_method: "app-store-connect",
+        export_method: "app-store",
         output_directory: "build/fastlane",
         output_name: "VibeTunnel.ipa",
         xcargs: [
@@ -158,7 +158,7 @@ platform :ios do
         ].join(" "),
         export_xcargs: auth_args,
         export_options: {
-          method: "app-store-connect",
+          method: "app-store",
           signingStyle: "automatic",
           teamID: developer_team_id,
           manageAppVersionAndBuildNumber: false
