@@ -39,6 +39,7 @@ struct TerminalView: View {
         NavigationStack {
             self.mainContent
                 .navigationTitle(self.session.displayName)
+                .accessibilityIdentifier("terminal-view")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar(.visible, for: .bottomBar)
                 .toolbarBackground(.automatic, for: .bottomBar)
@@ -285,6 +286,7 @@ struct TerminalView: View {
                     self.dismiss()
                 }
                 .foregroundColor(Theme.Colors.primaryAccent)
+                .accessibilityIdentifier("terminal-close-button")
             }
 
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -323,6 +325,7 @@ struct TerminalView: View {
                 .font(.system(size: 16))
                 .foregroundColor(Theme.Colors.primaryAccent)
         })
+        .accessibilityIdentifier("terminal-folder-button")
     }
 
     private var widthSelectorButton: some View {
@@ -343,6 +346,7 @@ struct TerminalView: View {
                     .stroke(Theme.Colors.primaryAccent.opacity(0.3), lineWidth: 1))
         })
         .foregroundColor(Theme.Colors.primaryAccent)
+        .accessibilityIdentifier("terminal-width-button")
         .popover(isPresented: self.$showingWidthSelector, arrowEdge: .top) {
             WidthSelectorPopover(
                 currentWidth: self.$currentTerminalWidth,
@@ -357,6 +361,7 @@ struct TerminalView: View {
             Image(systemName: "ellipsis.circle")
                 .foregroundColor(Theme.Colors.primaryAccent)
         }
+        .accessibilityIdentifier("terminal-menu-button")
     }
 
     @ViewBuilder private var terminalMenuItems: some View {
@@ -552,6 +557,7 @@ struct TerminalView: View {
                 .id(self.viewModel.terminalViewId)
                 .background(self.selectedTheme.background)
                 .focused(self.$isInputFocused)
+                .accessibilityIdentifier("terminal-content")
                 .overlay(
                     ScrollToBottomButton(
                         isVisible: self.showScrollToBottom)
@@ -625,6 +631,13 @@ class TerminalViewModel {
 
     private func setupTerminal() {
         // Terminal setup handled by GhosttyWebView
+    }
+
+    func attachTerminalCoordinator(_ coordinator: any TerminalCoordinating) {
+        if let current = terminalCoordinator, current === coordinator {
+            return
+        }
+        self.terminalCoordinator = coordinator
     }
 
     func startRecording() {

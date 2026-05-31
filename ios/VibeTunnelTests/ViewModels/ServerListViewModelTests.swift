@@ -44,9 +44,9 @@ struct ServerListViewModelTests {
     func initializationWithDefaultProfiles() {
         let (viewModel, _) = self.createTestViewModel()
 
-        #expect(viewModel.profiles.count == 2)
+        #expect(viewModel.profiles.count == 1)
         #expect(viewModel.profiles.contains { $0.name == "Ubuntu (Tailscale)" })
-        #expect(viewModel.profiles.contains { $0.name == "MacBook Pro (Tailscale)" })
+        #expect(!viewModel.profiles.contains { $0.name == "MacBook Pro (Tailscale)" })
         #expect(viewModel.isLoading == false)
         #expect(viewModel.errorMessage == nil)
         #expect(viewModel.showLoginView == false)

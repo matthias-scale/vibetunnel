@@ -15,6 +15,14 @@ struct VibeTunnelApp: App {
     init() {
         // Configure app logging level
         AppConfig.configureLogging()
+
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["VT_UI_TESTING_RESET"] == "1" {
+            UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? "sh.vibetunnel.ios")
+            UserDefaults.standard.set(true, forKey: "welcomeCompleted")
+            try? KeychainService().deleteAllPasswords()
+        }
+        #endif
     }
 
     var body: some Scene {

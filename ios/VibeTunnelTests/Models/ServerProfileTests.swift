@@ -154,7 +154,7 @@ struct ServerProfileTests {
         testDefaults.removePersistentDomain(forName: "test.serverprofile.time")
     }
 
-    @Test("Seeds default Tailscale servers once")
+    @Test("Seeds default Ubuntu Tailscale server once")
     func seedDefaultServersOnce() {
         let suiteName = "test.serverprofile.defaults.\(UUID().uuidString)"
         let testDefaults = UserDefaults(suiteName: suiteName)!
@@ -164,7 +164,7 @@ struct ServerProfileTests {
         ServerProfile.seedDefaultServersIfNeeded(in: testDefaults)
 
         let profiles = ServerProfile.loadAll(from: testDefaults)
-        #expect(profiles.count == 2)
+        #expect(profiles.count == 1)
         #expect(testDefaults.bool(forKey: ServerProfile.didSeedDefaultServersKey))
 
         let ubuntu = profiles.first { $0.name == "Ubuntu (Tailscale)" }
@@ -177,13 +177,7 @@ struct ServerProfileTests {
         #expect(ubuntu?.requiresAuth == true)
         #expect(ubuntu?.username == "ubuntu")
 
-        let macBook = profiles.first { $0.name == "MacBook Pro (Tailscale)" }
-        #expect(macBook?.url == "http://matthiass-macbook-pro.tailc1d69d.ts.net:4020")
-        #expect(macBook?.host == "matthiass-macbook-pro.tailc1d69d.ts.net")
-        #expect(macBook?.port == 4_020)
-        #expect(macBook?.httpsAvailable == false)
-        #expect(macBook?.isTailscaleEnabled == true)
-        #expect(macBook?.tailscaleHostname == "matthiass-macbook-pro.tailc1d69d.ts.net")
+        #expect(!profiles.contains { $0.name == "MacBook Pro (Tailscale)" })
 
         testDefaults.removePersistentDomain(forName: suiteName)
     }
@@ -212,11 +206,11 @@ struct ServerProfileTests {
         ServerProfile.seedDefaultServersIfNeeded(in: testDefaults)
 
         let profiles = ServerProfile.loadAll(from: testDefaults)
-        #expect(profiles.count == 3)
+        #expect(profiles.count == 2)
         #expect(profiles.contains { $0.id == customProfile.id && $0.name == "Custom" })
         #expect(profiles.contains { $0.id == existingUbuntu.id && $0.name == "Existing Ubuntu" })
         #expect(profiles.filter { $0.tailscaleHostname == "ubuntu-direct.tailc1d69d.ts.net" }.count == 1)
-        #expect(profiles.filter { $0.tailscaleHostname == "matthiass-macbook-pro.tailc1d69d.ts.net" }.count == 1)
+        #expect(profiles.allSatisfy { $0.tailscaleHostname != "matthiass-macbook-pro.tailc1d69d.ts.net" })
 
         testDefaults.removePersistentDomain(forName: suiteName)
     }

@@ -741,6 +741,8 @@ struct ServerProfileCard: View {
                         .foregroundColor(Theme.Colors.secondaryText)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("server-profile-edit-\(profile.name)")
+                .accessibilityLabel("Edit \(profile.name)")
 
                 Button(action: onConnect) {
                     HStack(spacing: 4) {
@@ -758,6 +760,8 @@ struct ServerProfileCard: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(isLoading)
+                .accessibilityIdentifier("server-profile-connect-\(profile.name)")
+                .accessibilityLabel("Connect \(profile.name)")
             }
         }
         .padding(Theme.Spacing.medium)

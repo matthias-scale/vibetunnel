@@ -35,22 +35,20 @@ struct GhosttyWebView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
 
         context.coordinator.webView = webView
-        self.viewModel?.terminalCoordinator = context.coordinator
+        self.viewModel?.attachTerminalCoordinator(context.coordinator)
         context.coordinator.loadTerminal()
 
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        self.viewModel?.terminalCoordinator = context.coordinator
-        webView.backgroundColor = UIColor(self.theme.background)
+        self.viewModel?.attachTerminalCoordinator(context.coordinator)
         context.coordinator.updateFontSize(self.fontSize)
         context.coordinator.updateTheme(self.theme)
         context.coordinator.updateTerminalSize(self.terminalSize)
-        context.coordinator.requestFit()
         // Idempotent safety net: if the content view wasn't attached yet at didFinish, install the
         // input-accessory suppression on a later SwiftUI update (cheap; reuses the cached subclass).
-        webView.vt_suppressInputAccessoryView()
+        context.coordinator.suppressInputAccessoryIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -66,13 +64,16 @@ struct GhosttyWebView: UIViewRepresentable {
         private var isReady = false
         private var pendingTerminalSize: TerminalSize?
         private var lastTerminalSize: TerminalSize?
+        private var lastFontSize: CGFloat?
+        private var lastTheme: TerminalTheme?
+        private var hasSuppressedInputAccessory = false
 
         init(_ parent: GhosttyWebView) {
             self.parent = parent
             super.init()
 
             if let viewModel = parent.viewModel {
-                viewModel.terminalCoordinator = self
+                viewModel.attachTerminalCoordinator(self)
             }
             parent.onReady?(self)
         }
@@ -359,7 +360,12 @@ struct GhosttyWebView: UIViewRepresentable {
             // Drop WebKit's default input-accessory bar now that the content view exists.
             // VibeTunnel supplies its own TerminalToolbar, so the system bar is redundant and is
             // the source of the `_UIKBCompatInputView` / `TUIKeyboardContentView` layout conflict.
-            webView.vt_suppressInputAccessoryView()
+            self.suppressInputAccessoryIfNeeded()
+        }
+
+        func suppressInputAccessoryIfNeeded() {
+            guard !self.hasSuppressedInputAccessory, let webView else { return }
+            self.hasSuppressedInputAccessory = webView.vt_suppressInputAccessoryView()
         }
 
         func updateTerminalSize(_ size: TerminalSize?) {
@@ -383,10 +389,15 @@ struct GhosttyWebView: UIViewRepresentable {
         }
 
         func updateFontSize(_ size: CGFloat) {
+            guard self.lastFontSize != size else { return }
+            self.lastFontSize = size
             self.webView?.evaluateJavaScript("window.ghosttyAPI.updateFontSize(\(size))")
         }
 
         func updateTheme(_ theme: TerminalTheme) {
+            guard self.lastTheme != theme else { return }
+            self.lastTheme = theme
+            self.webView?.backgroundColor = UIColor(theme.background)
             let themeJSON = self.makeThemeJSON(theme)
             self.webView?.evaluateJavaScript("window.ghosttyAPI.updateTheme(\(themeJSON))")
         }
@@ -504,20 +515,24 @@ extension WKWebView {
     /// log noise when the keyboard animates in. WebKit exposes no public API to disable the bar, so
     /// we retarget the content view to a generated subclass whose `inputAccessoryView` returns nil.
     /// Idempotent: re-running reuses the generated subclass.
-    func vt_suppressInputAccessoryView() {
+    @discardableResult
+    func vt_suppressInputAccessoryView() -> Bool {
         // The WKContentView is normally a direct subview of the scroll view, but search the whole
         // web-view subtree to be robust to WebKit nesting it differently across iOS versions.
-        guard let contentView = Self.vt_findContentView(in: self) else { return }
+        guard let contentView = Self.vt_findContentView(in: self) else { return false }
 
         let baseClass: AnyClass = type(of: contentView)
-        let subclassName = "\(NSStringFromClass(baseClass))_VTNoInputAccessory"
+        let baseClassName = NSStringFromClass(baseClass)
+        if baseClassName.hasSuffix("_VTNoInputAccessory") { return true }
+
+        let subclassName = "\(baseClassName)_VTNoInputAccessory"
 
         if let existing = NSClassFromString(subclassName) {
             object_setClass(contentView, existing)
-            return
+            return true
         }
 
-        guard let subclass = objc_allocateClassPair(baseClass, subclassName, 0) else { return }
+        guard let subclass = objc_allocateClassPair(baseClass, subclassName, 0) else { return false }
         let selector = #selector(getter: UIResponder.inputAccessoryView)
         let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
         let imp = imp_implementationWithBlock(block)
@@ -532,10 +547,11 @@ extension WKWebView {
             // Don't register/swap to a subclass that failed to override the getter — it would be
             // cached by the fast path above and forever re-applied as a no-op.
             objc_disposeClassPair(subclass)
-            return
+            return false
         }
         objc_registerClassPair(subclass)
         object_setClass(contentView, subclass)
+        return true
     }
 
     private static func vt_findContentView(in view: UIView) -> UIView? {

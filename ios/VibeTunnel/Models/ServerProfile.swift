@@ -149,15 +149,6 @@ extension ServerProfile {
             isTailscaleEnabled: true,
             httpsAvailable: true
         ),
-        ServerProfile(
-            name: "MacBook Pro (Tailscale)",
-            url: "http://matthiass-macbook-pro.tailc1d69d.ts.net:4020",
-            host: "matthiass-macbook-pro.tailc1d69d.ts.net",
-            port: 4_020,
-            tailscaleHostname: "matthiass-macbook-pro.tailc1d69d.ts.net",
-            isTailscaleEnabled: true,
-            httpsAvailable: false
-        ),
     ]
 
     /// Load all saved profiles from UserDefaults

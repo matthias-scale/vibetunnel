@@ -8,9 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		51D8512C630C0A818A2651F4 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7C27ECCFC47CD72452A9FD3E /* Foundation.framework */; };
+		6A9BF8D89C85725345878388 /* PostLoginFreezeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9661CB7B7BA954B08E0F1BE2 /* PostLoginFreezeUITests.swift */; };
+		8C5B8462E8AF36606989E3AB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7C27ECCFC47CD72452A9FD3E /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		05BDFC2DDF466AF7AD52B882 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 788687F02DFF4FCB00B22C15;
+			remoteInfo = VibeTunnel;
+		};
 		FE415EBDC086853977484B28 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
@@ -21,9 +30,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		07B5B3CFB2AB5AE0C319607D /* VibeTunnelUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeTunnelUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		216D52E392D8F0CDC6358BB8 /* VibeTunnel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibeTunnel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		651BDD47248F3D9D55994B3E /* VibeTunnelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeTunnelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C27ECCFC47CD72452A9FD3E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		9661CB7B7BA954B08E0F1BE2 /* PostLoginFreezeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PostLoginFreezeUITests.swift; path = VibeTunnelUITests/PostLoginFreezeUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -49,6 +60,8 @@
 		};
 		BCF2D02E2E15ED2A0049CC96 /* VibeTunnelTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = VibeTunnelTests;
 			sourceTree = "<group>";
 		};
@@ -70,6 +83,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		96A9047F96D98ABED5B7DCB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8C5B8462E8AF36606989E3AB /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -80,6 +101,7 @@
 				7866022B46DD9C411CAEDA26 /* Products */,
 				BA0784F47C0CF8EA73E68265 /* Frameworks */,
 				BCF2D02E2E15ED2A0049CC96 /* VibeTunnelTests */,
+				CEE599E26D66D8D947855F35 /* VibeTunnelUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -88,6 +110,7 @@
 			children = (
 				216D52E392D8F0CDC6358BB8 /* VibeTunnel.app */,
 				651BDD47248F3D9D55994B3E /* VibeTunnelTests.xctest */,
+				07B5B3CFB2AB5AE0C319607D /* VibeTunnelUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -98,6 +121,14 @@
 				F32522FE179C41E1B2445A65 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CEE599E26D66D8D947855F35 /* VibeTunnelUITests */ = {
+			isa = PBXGroup;
+			children = (
+				9661CB7B7BA954B08E0F1BE2 /* PostLoginFreezeUITests.swift */,
+			);
+			name = VibeTunnelUITests;
 			sourceTree = "<group>";
 		};
 		F32522FE179C41E1B2445A65 /* iOS */ = {
@@ -132,6 +163,24 @@
 			productReference = 651BDD47248F3D9D55994B3E /* VibeTunnelTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		2C39AFC0A6EF95133D9FFAD1 /* VibeTunnelUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 05EC25A8F718A21BA1407C57 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */;
+			buildPhases = (
+				4B8783ADABC02BB9C078AD9B /* Sources */,
+				96A9047F96D98ABED5B7DCB1 /* Frameworks */,
+				D655F0545DA7452928478050 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D2C046493F472980616D0592 /* PBXTargetDependency */,
+			);
+			name = VibeTunnelUITests;
+			productName = VibeTunnelUITests;
+			productReference = 07B5B3CFB2AB5AE0C319607D /* VibeTunnelUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		788687F02DFF4FCB00B22C15 /* VibeTunnel */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8D99F6108356CC0D04FBF9FD /* Build configuration list for PBXNativeTarget "VibeTunnel" */;
@@ -148,8 +197,6 @@
 				A4640175A87A16583F0A76A8 /* VibeTunnel */,
 			);
 			name = VibeTunnel;
-			packageProductDependencies = (
-			);
 			productName = VibeTunnel;
 			productReference = 216D52E392D8F0CDC6358BB8 /* VibeTunnel.app */;
 			productType = "com.apple.product-type.application";
@@ -181,8 +228,6 @@
 			);
 			mainGroup = 0DD83B4196D66608380E46BB;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7866022B46DD9C411CAEDA26 /* Products */;
 			projectDirPath = "";
@@ -190,6 +235,7 @@
 			targets = (
 				788687F02DFF4FCB00B22C15 /* VibeTunnel */,
 				04469FB37E8A42F9D06BF670 /* VibeTunnelTests */,
+				2C39AFC0A6EF95133D9FFAD1 /* VibeTunnelUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -209,9 +255,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D655F0545DA7452928478050 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4B8783ADABC02BB9C078AD9B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6A9BF8D89C85725345878388 /* PostLoginFreezeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		62833EC4917888F3D96423A2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -234,6 +295,12 @@
 			name = VibeTunnel;
 			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
 			targetProxy = FE415EBDC086853977484B28 /* PBXContainerItemProxy */;
+		};
+		D2C046493F472980616D0592 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = VibeTunnel;
+			target = 788687F02DFF4FCB00B22C15 /* VibeTunnel */;
+			targetProxy = 05BDFC2DDF466AF7AD52B882 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -320,6 +387,22 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		637F6EF58F9D53172BDE289F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VibeTunnel;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
 		};
 		6BD919EBC6E8FC8AE5C0AD08 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -414,6 +497,21 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		88028CFF558FC480B48B4F63 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VibeTunnel;
+			};
+			name = Debug;
 		};
 		AB5CCE958CDF40666B1D5C7F /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -557,6 +655,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		05EC25A8F718A21BA1407C57 /* Build configuration list for PBXNativeTarget "VibeTunnelUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				637F6EF58F9D53172BDE289F /* Release */,
+				88028CFF558FC480B48B4F63 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		6D69C4974433AED85B9B8A62 /* Build configuration list for PBXProject "VibeTunnel-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -585,12 +692,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4C82CEFDA8E4EFE0B37538D7 /* Project object */;
 }
