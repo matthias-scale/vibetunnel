@@ -3,6 +3,7 @@ default_platform(:ios)
 
 require "base64"
 require "fileutils"
+require "open3"
 require "shellwords"
 require "spaceship"
 require "tmpdir"
@@ -18,7 +19,7 @@ def app_identifier
 end
 
 def developer_team_id
-  ENV.fetch("DEVELOPER_PORTAL_TEAM_ID", "3ZNPZYZ9JR")
+  ENV.fetch("DEVELOPER_PORTAL_TEAM_ID", "XBMZF3328T")
 end
 
 def app_store_connect_team_id
@@ -35,6 +36,7 @@ def asc_api_key
     issuer_id: env!("ASC_ISSUER_ID"),
     key_content: env!("ASC_KEY_CONTENT"),
     is_key_content_base64: true,
+    in_house: false,
     duration: 1200
   )
 end
@@ -56,6 +58,33 @@ def xcode_auth_args(key_path)
     "-authenticationKeyID #{Shellwords.escape(env!("ASC_KEY_ID"))}",
     "-authenticationKeyIssuerID #{Shellwords.escape(env!("ASC_ISSUER_ID"))}"
   ].join(" ")
+end
+
+def mobileprovision_value(profile_path, key)
+  plist, cms_status = Open3.capture2("/usr/bin/security", "cms", "-D", "-i", profile_path)
+  UI.user_error!("Failed to decode provisioning profile #{profile_path}") unless cms_status.success?
+
+  value, plutil_status = Open3.capture2(
+    "/usr/bin/plutil",
+    "-extract",
+    key,
+    "raw",
+    "-o",
+    "-",
+    "-",
+    stdin_data: plist
+  )
+  UI.user_error!("Failed to read #{key} from provisioning profile #{profile_path}") unless plutil_status.success?
+
+  value.strip
+end
+
+def install_provisioning_profile(profile_path)
+  uuid = mobileprovision_value(profile_path, "UUID")
+  destination = File.expand_path("~/Library/MobileDevice/Provisioning Profiles/#{uuid}.mobileprovision")
+  FileUtils.mkdir_p(File.dirname(destination))
+  FileUtils.cp(profile_path, destination)
+  uuid
 end
 
 def ensure_bundle_id!
@@ -138,6 +167,17 @@ platform :ios do
   lane :beta do
     api_key = asc_api_key
     produce_app
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: app_identifier,
+      team_id: developer_team_id,
+      output_path: "build/profiles",
+      filename: "VibeTunnel_AppStore.mobileprovision",
+      skip_certificate_verification: true
+    )
+    profile_path = Actions.lane_context[SharedValues::SIGH_PROFILE_PATH]
+    profile_name = mobileprovision_value(profile_path, "Name")
+    profile_uuid = install_provisioning_profile(profile_path)
 
     with_asc_key_file do |key_path|
       auth_args = xcode_auth_args(key_path)
@@ -147,20 +187,27 @@ platform :ios do
         configuration: "Release",
         clean: true,
         export_method: "app-store",
+        include_symbols: false,
         output_directory: "build/fastlane",
         output_name: "VibeTunnel.ipa",
         xcargs: [
           "DEVELOPMENT_TEAM=#{developer_team_id}",
           "APP_STORE_CONNECT_TEAM_ID=#{app_store_connect_team_id}",
-          "CODE_SIGN_STYLE=Automatic",
+          "CODE_SIGN_STYLE=Manual",
+          "CODE_SIGN_IDENTITY=#{Shellwords.escape('Apple Distribution')}",
           "PRODUCT_BUNDLE_IDENTIFIER=#{app_identifier}",
+          "PROVISIONING_PROFILE_SPECIFIER=#{Shellwords.escape(profile_name)}",
+          "PROVISIONING_PROFILE=#{profile_uuid}",
           auth_args
         ].join(" "),
-        export_xcargs: auth_args,
         export_options: {
           method: "app-store",
-          signingStyle: "automatic",
+          signingStyle: "manual",
+          signingCertificate: "Apple Distribution",
           teamID: developer_team_id,
+          provisioningProfiles: {
+            app_identifier => profile_name
+          },
           manageAppVersionAndBuildNumber: false
         }
       )
