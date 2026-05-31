@@ -35,12 +35,14 @@ struct GhosttyWebView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
 
         context.coordinator.webView = webView
+        self.viewModel?.terminalCoordinator = context.coordinator
         context.coordinator.loadTerminal()
 
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        self.viewModel?.terminalCoordinator = context.coordinator
         webView.backgroundColor = UIColor(self.theme.background)
         context.coordinator.updateFontSize(self.fontSize)
         context.coordinator.updateTheme(self.theme)
@@ -258,15 +260,60 @@ struct GhosttyWebView: UIViewRepresentable {
             guard let ghosttyURL = Bundle.main.url(
                 forResource: "ghostty-web",
                 withExtension: "js",
-                subdirectory: "ghostty")
+                subdirectory: "ghostty") ?? Bundle.main.url(
+                forResource: "ghostty-web",
+                withExtension: "js")
             else {
                 self.logger.error("ghostty-web.js missing from bundle")
+                self.loadBundleError("ghostty-web.js is missing from the app bundle.")
                 return
             }
 
             let baseURL = ghosttyURL.deletingLastPathComponent()
+            let wasmURL = baseURL.appendingPathComponent("ghostty-vt.wasm")
+            guard FileManager.default.fileExists(atPath: wasmURL.path) else {
+                self.logger.error("ghostty-vt.wasm missing beside ghostty-web.js")
+                self.loadBundleError("ghostty-vt.wasm is missing beside ghostty-web.js.")
+                return
+            }
+
             webView.loadHTMLString(html, baseURL: baseURL)
             webView.navigationDelegate = self
+        }
+
+        private func loadBundleError(_ message: String) {
+            let escapedMessage = message
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+                <style>
+                    html, body {
+                        margin: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: #0d1117;
+                        color: #ff7b72;
+                        font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+                    }
+                    body {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 20px;
+                        box-sizing: border-box;
+                    }
+                </style>
+            </head>
+            <body>\(escapedMessage)</body>
+            </html>
+            """
+            self.webView?.loadHTMLString(html, baseURL: nil)
         }
 
         func userContentController(

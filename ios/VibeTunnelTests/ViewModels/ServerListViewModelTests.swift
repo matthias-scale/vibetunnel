@@ -40,11 +40,13 @@ struct ServerListViewModelTests {
 
     // MARK: - Tests
 
-    @Test("ViewModel initializes with empty profiles")
-    func initializationWithEmptyProfiles() {
+    @Test("ViewModel initializes with default profiles")
+    func initializationWithDefaultProfiles() {
         let (viewModel, _) = self.createTestViewModel()
 
-        #expect(viewModel.profiles.isEmpty)
+        #expect(viewModel.profiles.count == 2)
+        #expect(viewModel.profiles.contains { $0.name == "Ubuntu (Tailscale)" })
+        #expect(viewModel.profiles.contains { $0.name == "MacBook Pro (Tailscale)" })
         #expect(viewModel.isLoading == false)
         #expect(viewModel.errorMessage == nil)
         #expect(viewModel.showLoginView == false)

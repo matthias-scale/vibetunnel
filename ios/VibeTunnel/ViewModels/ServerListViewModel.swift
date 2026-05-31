@@ -53,6 +53,7 @@ class ServerListViewModel: ServerListViewModelProtocol {
         self.networkMonitor = networkMonitor
         self.keychainService = keychainService
         self.userDefaults = userDefaults
+        ServerProfile.seedDefaultServersIfNeeded(in: userDefaults)
         loadProfiles()
     }
 
