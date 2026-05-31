@@ -188,7 +188,7 @@ extension TerminalTheme {
             guard let themeId = UserDefaults.standard.string(forKey: selectedThemeKey),
                   let theme = allThemes.first(where: { $0.id == themeId })
             else {
-                return .dracula
+                return .vibeTunnel
             }
             return theme
         }

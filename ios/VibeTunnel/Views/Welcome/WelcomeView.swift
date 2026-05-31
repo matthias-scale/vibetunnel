@@ -144,14 +144,14 @@ struct WelcomePageView: View {
             // App icon with glow effect
             ZStack {
                 // Glow background
-                Image("AppIcon")
+                Image("AppIconImage")
                     .resizable()
                     .frame(width: 120, height: 120)
                     .blur(radius: 20)
                     .opacity(0.5)
 
                 // Main icon
-                Image("AppIcon")
+                Image("AppIconImage")
                     .resizable()
                     .frame(width: 120, height: 120)
                     .cornerRadius(26)

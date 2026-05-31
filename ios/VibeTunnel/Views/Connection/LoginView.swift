@@ -2,9 +2,6 @@ import SwiftUI
 
 /// Login view for authenticating with the VibeTunnel server
 struct LoginView: View {
-    @Environment(\.dismiss)
-    private var dismiss
-
     @Binding var isPresented: Bool
 
     let serverConfig: ServerConfig
@@ -16,6 +13,8 @@ struct LoginView: View {
     @State private var isAuthenticating = false
     @State private var errorMessage: String?
     @State private var authConfig: AuthenticationService.AuthConfig?
+    @State private var pendingSuccessfulCredentials: (username: String, password: String)?
+    @State private var didDeliverSuccess = false
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable {
@@ -49,6 +48,7 @@ struct LoginView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused(self.$focusedField, equals: .username)
+                        .accessibilityIdentifier("login-username")
                         .onSubmit {
                             self.focusedField = .password
                         }
@@ -56,6 +56,7 @@ struct LoginView: View {
                     SecureField("Password", text: self.$password)
                         .textFieldStyle(.roundedBorder)
                         .focused(self.$focusedField, equals: .password)
+                        .accessibilityIdentifier("login-password")
                         .onSubmit {
                             self.authenticate()
                         }
@@ -76,11 +77,11 @@ struct LoginView: View {
                 // Action buttons
                 HStack(spacing: 12) {
                     Button("Cancel") {
-                        self.dismiss()
                         self.isPresented = false
                     }
                     .buttonStyle(.bordered)
                     .disabled(self.isAuthenticating)
+                    .accessibilityIdentifier("login-cancel-button")
 
                     Button(action: self.authenticate) {
                         if self.isAuthenticating {
@@ -93,6 +94,7 @@ struct LoginView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(self.username.isEmpty || self.password.isEmpty || self.isAuthenticating)
+                    .accessibilityIdentifier("login-submit-button")
                 }
                 .padding(.horizontal)
 
@@ -132,7 +134,6 @@ struct LoginView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        self.dismiss()
                         self.isPresented = false
                     }
                     .disabled(self.isAuthenticating)
@@ -154,8 +155,7 @@ struct LoginView: View {
 
                 // If no auth required, dismiss immediately
                 if self.authConfig?.noAuth == true {
-                    self.dismiss()
-                    self.onSuccess("", "") // No credentials needed
+                    self.completeAuthentication(username: "", password: "")
                 }
             } catch {
                 // Continue with password auth
@@ -167,6 +167,9 @@ struct LoginView: View {
             } else {
                 self.focusedField = .password
             }
+        }
+        .onDisappear {
+            self.deliverPendingSuccessIfNeeded()
         }
     }
 
@@ -182,10 +185,7 @@ struct LoginView: View {
                     username: self.username,
                     password: self.password)
 
-                // Success - dismiss and call completion with credentials
-                self.dismiss()
-                self.isPresented = false
-                self.onSuccess(self.username, self.password)
+                self.completeAuthentication(username: self.username, password: self.password)
             } catch {
                 // Show error
                 if let apiError = error as? APIError {
@@ -201,6 +201,19 @@ struct LoginView: View {
 
             self.isAuthenticating = false
         }
+    }
+
+    private func completeAuthentication(username: String, password: String) {
+        self.pendingSuccessfulCredentials = (username, password)
+        self.isPresented = false
+    }
+
+    private func deliverPendingSuccessIfNeeded() {
+        guard !self.didDeliverSuccess, let credentials = self.pendingSuccessfulCredentials else { return }
+
+        self.didDeliverSuccess = true
+        self.pendingSuccessfulCredentials = nil
+        self.onSuccess(credentials.username, credentials.password)
     }
 }
 

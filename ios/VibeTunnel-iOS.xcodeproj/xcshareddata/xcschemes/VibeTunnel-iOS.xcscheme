@@ -42,6 +42,17 @@
                ReferencedContainer = "container:VibeTunnel-iOS.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "2C39AFC0A6EF95133D9FFAD1"
+               BuildableName = "VibeTunnelUITests.xctest"
+               BlueprintName = "VibeTunnelUITests"
+               ReferencedContainer = "container:VibeTunnel-iOS.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

@@ -1,3 +1,4 @@
+import ObjectiveC
 import SwiftUI
 import WebKit
 
@@ -34,17 +35,20 @@ struct GhosttyWebView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
 
         context.coordinator.webView = webView
+        self.viewModel?.attachTerminalCoordinator(context.coordinator)
         context.coordinator.loadTerminal()
 
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        webView.backgroundColor = UIColor(self.theme.background)
+        self.viewModel?.attachTerminalCoordinator(context.coordinator)
         context.coordinator.updateFontSize(self.fontSize)
         context.coordinator.updateTheme(self.theme)
         context.coordinator.updateTerminalSize(self.terminalSize)
-        context.coordinator.requestFit()
+        // Idempotent safety net: if the content view wasn't attached yet at didFinish, install the
+        // input-accessory suppression on a later SwiftUI update (cheap; reuses the cached subclass).
+        context.coordinator.suppressInputAccessoryIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -60,13 +64,16 @@ struct GhosttyWebView: UIViewRepresentable {
         private var isReady = false
         private var pendingTerminalSize: TerminalSize?
         private var lastTerminalSize: TerminalSize?
+        private var lastFontSize: CGFloat?
+        private var lastTheme: TerminalTheme?
+        private var hasSuppressedInputAccessory = false
 
         init(_ parent: GhosttyWebView) {
             self.parent = parent
             super.init()
 
             if let viewModel = parent.viewModel {
-                viewModel.terminalCoordinator = self
+                viewModel.attachTerminalCoordinator(self)
             }
             parent.onReady?(self)
         }
@@ -76,6 +83,7 @@ struct GhosttyWebView: UIViewRepresentable {
 
             let themeJSON = self.makeThemeJSON(self.parent.theme)
             let fontFamilyJSON = self.makeFontFamilyJSON()
+            let fontFaceCSS = self.makeFontFaceCSS()
             let disableInput = self.parent.disableInput ? "true" : "false"
 
             let html = """
@@ -84,6 +92,7 @@ struct GhosttyWebView: UIViewRepresentable {
             <head>
                 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">
                 <style>
+                    \(fontFaceCSS)
                     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
                     body { background: transparent; -webkit-user-select: none; -webkit-touch-callout: none; }
                     #terminal { width: 100vw; height: 100vh; }
@@ -118,8 +127,24 @@ struct GhosttyWebView: UIViewRepresentable {
                         }
                     }
 
+                    async function ensureFontLoaded() {
+                        // The terminal renders to a canvas, which only picks up a web font once it
+                        // has actually loaded. Force-load the primary family before first draw so
+                        // glyphs aren't measured/rendered with the fallback face.
+                        try {
+                            if (document.fonts && document.fonts.load) {
+                                const primary = fontFamily.split(',')[0].trim();
+                                await document.fonts.load(initialFontSize + 'px \"' + primary + '\"');
+                                await document.fonts.ready;
+                            }
+                        } catch (e) {
+                            post('terminalLog', 'font preload failed: ' + e);
+                        }
+                    }
+
                     async function initTerminal() {
                         try {
+                            await ensureFontLoaded();
                             const ghostty = await loadGhostty();
                             term = new GhosttyWeb.Terminal({
                                 cols: 80,
@@ -236,15 +261,60 @@ struct GhosttyWebView: UIViewRepresentable {
             guard let ghosttyURL = Bundle.main.url(
                 forResource: "ghostty-web",
                 withExtension: "js",
-                subdirectory: "ghostty")
+                subdirectory: "ghostty") ?? Bundle.main.url(
+                forResource: "ghostty-web",
+                withExtension: "js")
             else {
                 self.logger.error("ghostty-web.js missing from bundle")
+                self.loadBundleError("ghostty-web.js is missing from the app bundle.")
                 return
             }
 
             let baseURL = ghosttyURL.deletingLastPathComponent()
+            let wasmURL = baseURL.appendingPathComponent("ghostty-vt.wasm")
+            guard FileManager.default.fileExists(atPath: wasmURL.path) else {
+                self.logger.error("ghostty-vt.wasm missing beside ghostty-web.js")
+                self.loadBundleError("ghostty-vt.wasm is missing beside ghostty-web.js.")
+                return
+            }
+
             webView.loadHTMLString(html, baseURL: baseURL)
             webView.navigationDelegate = self
+        }
+
+        private func loadBundleError(_ message: String) {
+            let escapedMessage = message
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+                <style>
+                    html, body {
+                        margin: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: #0d1117;
+                        color: #ff7b72;
+                        font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+                    }
+                    body {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 20px;
+                        box-sizing: border-box;
+                    }
+                </style>
+            </head>
+            <body>\(escapedMessage)</body>
+            </html>
+            """
+            self.webView?.loadHTMLString(html, baseURL: nil)
         }
 
         func userContentController(
@@ -287,6 +357,15 @@ struct GhosttyWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             self.logger.info("Ghostty terminal page loaded")
+            // Drop WebKit's default input-accessory bar now that the content view exists.
+            // VibeTunnel supplies its own TerminalToolbar, so the system bar is redundant and is
+            // the source of the `_UIKBCompatInputView` / `TUIKeyboardContentView` layout conflict.
+            self.suppressInputAccessoryIfNeeded()
+        }
+
+        func suppressInputAccessoryIfNeeded() {
+            guard !self.hasSuppressedInputAccessory, let webView else { return }
+            self.hasSuppressedInputAccessory = webView.vt_suppressInputAccessoryView()
         }
 
         func updateTerminalSize(_ size: TerminalSize?) {
@@ -310,10 +389,15 @@ struct GhosttyWebView: UIViewRepresentable {
         }
 
         func updateFontSize(_ size: CGFloat) {
+            guard self.lastFontSize != size else { return }
+            self.lastFontSize = size
             self.webView?.evaluateJavaScript("window.ghosttyAPI.updateFontSize(\(size))")
         }
 
         func updateTheme(_ theme: TerminalTheme) {
+            guard self.lastTheme != theme else { return }
+            self.lastTheme = theme
+            self.webView?.backgroundColor = UIColor(theme.background)
             let themeJSON = self.makeThemeJSON(theme)
             self.webView?.evaluateJavaScript("window.ghosttyAPI.updateTheme(\(themeJSON))")
         }
@@ -391,10 +475,91 @@ struct GhosttyWebView: UIViewRepresentable {
             return self.jsonString(fontFamily) ?? "\"monospace\""
         }
 
+        /// Builds a `@font-face` rule that embeds the bundled FiraCode font as a base64 data URL,
+        /// so the WKWebView terminal renders in the same font as the rest of the app. The webview
+        /// loads from the `ghostty` resource directory, so we inline the font rather than rely on a
+        /// relative URL. Falls back to an empty string (system monospace) if the font is missing.
+        private func makeFontFaceCSS() -> String {
+            guard let url = Bundle.main.url(forResource: "FiraCode-Regular", withExtension: "ttf"),
+                  let data = try? Data(contentsOf: url)
+            else {
+                self.logger.error("FiraCode-Regular.ttf missing from bundle; terminal falls back to system monospace")
+                return ""
+            }
+
+            let base64 = data.base64EncodedString()
+            return """
+            @font-face {
+                font-family: '\(Theme.Typography.terminalFont)';
+                font-style: normal;
+                font-weight: 400;
+                src: url(data:font/ttf;base64,\(base64)) format('truetype');
+            }
+            """
+        }
+
         private func jsonString<T: Encodable>(_ value: T) -> String? {
             guard let data = try? JSONEncoder().encode(value) else { return nil }
             return String(data: data, encoding: .utf8)
         }
+    }
+}
+
+extension WKWebView {
+    /// Suppresses the system input-accessory view (the QuickType/format bar) that WebKit attaches
+    /// to its internal `WKContentView` whenever a web text field is focused.
+    ///
+    /// The terminal supplies its own `TerminalToolbar`, so the default bar is redundant. Its
+    /// presence is what triggers the repeated
+    /// `Unable to simultaneously satisfy constraints … _UIKBCompatInputView … TUIKeyboardContentView`
+    /// log noise when the keyboard animates in. WebKit exposes no public API to disable the bar, so
+    /// we retarget the content view to a generated subclass whose `inputAccessoryView` returns nil.
+    /// Idempotent: re-running reuses the generated subclass.
+    @discardableResult
+    func vt_suppressInputAccessoryView() -> Bool {
+        // The WKContentView is normally a direct subview of the scroll view, but search the whole
+        // web-view subtree to be robust to WebKit nesting it differently across iOS versions.
+        guard let contentView = Self.vt_findContentView(in: self) else { return false }
+
+        let baseClass: AnyClass = type(of: contentView)
+        let baseClassName = NSStringFromClass(baseClass)
+        if baseClassName.hasSuffix("_VTNoInputAccessory") { return true }
+
+        let subclassName = "\(baseClassName)_VTNoInputAccessory"
+
+        if let existing = NSClassFromString(subclassName) {
+            object_setClass(contentView, existing)
+            return true
+        }
+
+        guard let subclass = objc_allocateClassPair(baseClass, subclassName, 0) else { return false }
+        let selector = #selector(getter: UIResponder.inputAccessoryView)
+        let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        let imp = imp_implementationWithBlock(block)
+        // Fall back to a hand-written encoding ("@@:" — object return, self + _cmd) if the base
+        // class doesn't already declare the getter, so a nil encoding can't silently no-op the add.
+        let typeEncoding = class_getInstanceMethod(baseClass, selector)
+            .flatMap { method_getTypeEncoding($0) }
+        let added = "@@:".withCString { fallback in
+            class_addMethod(subclass, selector, imp, typeEncoding ?? fallback)
+        }
+        guard added else {
+            // Don't register/swap to a subclass that failed to override the getter — it would be
+            // cached by the fast path above and forever re-applied as a no-op.
+            objc_disposeClassPair(subclass)
+            return false
+        }
+        objc_registerClassPair(subclass)
+        object_setClass(contentView, subclass)
+        return true
+    }
+
+    private static func vt_findContentView(in view: UIView) -> UIView? {
+        if String(describing: type(of: view)).hasPrefix("WKContentView") { return view }
+        for subview in view.subviews {
+            if let match = vt_findContentView(in: subview) { return match }
+        }
+        return nil
     }
 }
 

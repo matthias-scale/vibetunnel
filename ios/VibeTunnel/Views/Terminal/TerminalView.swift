@@ -39,6 +39,7 @@ struct TerminalView: View {
         NavigationStack {
             self.mainContent
                 .navigationTitle(self.session.displayName)
+                .accessibilityIdentifier("terminal-view")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar(.visible, for: .bottomBar)
                 .toolbarBackground(.automatic, for: .bottomBar)
@@ -269,9 +270,7 @@ struct TerminalView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if self.viewModel.isConnecting {
-                    self.loadingView
-                } else if let error = viewModel.errorMessage {
+                if let error = viewModel.errorMessage {
                     self.errorView(error)
                 } else {
                     self.terminalContent
@@ -287,6 +286,7 @@ struct TerminalView: View {
                     self.dismiss()
                 }
                 .foregroundColor(Theme.Colors.primaryAccent)
+                .accessibilityIdentifier("terminal-close-button")
             }
 
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -325,6 +325,7 @@ struct TerminalView: View {
                 .font(.system(size: 16))
                 .foregroundColor(Theme.Colors.primaryAccent)
         })
+        .accessibilityIdentifier("terminal-folder-button")
     }
 
     private var widthSelectorButton: some View {
@@ -345,6 +346,7 @@ struct TerminalView: View {
                     .stroke(Theme.Colors.primaryAccent.opacity(0.3), lineWidth: 1))
         })
         .foregroundColor(Theme.Colors.primaryAccent)
+        .accessibilityIdentifier("terminal-width-button")
         .popover(isPresented: self.$showingWidthSelector, arrowEdge: .top) {
             WidthSelectorPopover(
                 currentWidth: self.$currentTerminalWidth,
@@ -359,6 +361,7 @@ struct TerminalView: View {
             Image(systemName: "ellipsis.circle")
                 .foregroundColor(Theme.Colors.primaryAccent)
         }
+        .accessibilityIdentifier("terminal-menu-button")
     }
 
     @ViewBuilder private var terminalMenuItems: some View {
@@ -497,7 +500,7 @@ struct TerminalView: View {
 
             Text("Connecting to session...")
                 .font(Theme.Typography.terminalSystem(size: 14))
-                .foregroundColor(Theme.Colors.terminalForeground)
+                .foregroundColor(self.selectedTheme.foreground)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -510,18 +513,23 @@ struct TerminalView: View {
 
             Text("Connection Error")
                 .font(.headline)
-                .foregroundColor(Theme.Colors.terminalForeground)
+                .foregroundColor(self.selectedTheme.foreground)
 
             Text(error)
                 .font(Theme.Typography.terminalSystem(size: 12))
-                .foregroundColor(Theme.Colors.terminalForeground.opacity(0.7))
+                .foregroundColor(self.selectedTheme.foreground.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
             Button("Retry") {
                 self.viewModel.connect()
             }
-            .terminalButton()
+            .font(Theme.Typography.terminalSystem(size: 14))
+            .foregroundColor(self.selectedTheme.foreground)
+            .padding(.horizontal, Theme.Spacing.large)
+            .padding(.vertical, Theme.Spacing.medium)
+            .background(Theme.Colors.primaryAccent.opacity(0.25))
+            .cornerRadius(Theme.CornerRadius.medium)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -549,6 +557,7 @@ struct TerminalView: View {
                 .id(self.viewModel.terminalViewId)
                 .background(self.selectedTheme.background)
                 .focused(self.$isInputFocused)
+                .accessibilityIdentifier("terminal-content")
                 .overlay(
                     ScrollToBottomButton(
                         isVisible: self.showScrollToBottom)
@@ -604,7 +613,14 @@ class TerminalViewModel {
     private var resizeDebounceTask: Task<Void, Never>?
     private var hasPerformedInitialResize = false
     private var isPerformingInitialResize = false
-    weak var terminalCoordinator: (any TerminalCoordinating)?
+    private var hasSeenWebSocketConnection = false
+    weak var terminalCoordinator: (any TerminalCoordinating)? {
+        didSet {
+            self.flushPendingTerminalData()
+        }
+    }
+    private var pendingOutputData: [String] = []
+    private var pendingBufferSnapshot: BufferSnapshot?
 
     init(session: Session) {
         self.session = session
@@ -617,6 +633,13 @@ class TerminalViewModel {
         // Terminal setup handled by GhosttyWebView
     }
 
+    func attachTerminalCoordinator(_ coordinator: any TerminalCoordinating) {
+        if let current = terminalCoordinator, current === coordinator {
+            return
+        }
+        self.terminalCoordinator = coordinator
+    }
+
     func startRecording() {
         self.castRecorder.startRecording()
     }
@@ -626,8 +649,16 @@ class TerminalViewModel {
     }
 
     func connect() {
+        guard !self.hasSeenWebSocketConnection, !self.isConnected else {
+            self.isConnecting = false
+            self.errorMessage = nil
+            return
+        }
+
         self.isConnecting = true
+        self.isConnected = false
         self.errorMessage = nil
+        self.hasSeenWebSocketConnection = false
 
         // Subscribe to terminal events first (stores the handler)
         self.bufferWebSocketClient.subscribe(to: self.session.id) { [weak self] event in
@@ -646,11 +677,16 @@ class TerminalViewModel {
             while !Task.isCancelled {
                 let connected = self.bufferWebSocketClient.isConnected
                 await MainActor.run {
-                    self.isConnecting = false
                     self.isConnected = connected
-                    if !connected {
+                    if connected {
+                        self.hasSeenWebSocketConnection = true
+                        self.isConnecting = false
+                        self.errorMessage = nil
+                    } else if self.hasSeenWebSocketConnection {
+                        self.isConnecting = false
                         self.errorMessage = "WebSocket disconnected"
                     } else {
+                        self.isConnecting = true
                         self.errorMessage = nil
                     }
                 }
@@ -681,10 +717,17 @@ class TerminalViewModel {
         self.bufferWebSocketClient.unsubscribe(from: self.session.id)
         // Note: Don't disconnect the shared client as other views might be using it
         self.isConnected = false
+        self.hasSeenWebSocketConnection = false
     }
 
     @MainActor
     private func handleWebSocketEvent(_ event: TerminalWebSocketEvent) {
+        if case .exit = event {
+            // Exit events update connection state below.
+        } else {
+            self.markWebSocketReady()
+        }
+
         switch event {
         case let .header(width, height):
             // Initial terminal setup
@@ -700,13 +743,7 @@ class TerminalViewModel {
             } else {
                 // Queue the data to be fed once coordinator is ready
                 logger.warning("Terminal coordinator not ready, queueing data")
-                Task {
-                    // Wait a bit for coordinator to be initialized
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                    if let coordinator = self.terminalCoordinator {
-                        coordinator.feedData(data)
-                    }
-                }
+                self.pendingOutputData.append(data)
             }
             // Record output if recording
             self.castRecorder.recordOutput(data)
@@ -744,8 +781,8 @@ class TerminalViewModel {
             if let coordinator = terminalCoordinator {
                 coordinator.updateBuffer(from: snapshot)
             } else {
-                // Fallback: buffer updates not available yet
-                logger.warning("Direct buffer update not available")
+                logger.warning("Terminal coordinator not ready, queueing buffer update")
+                self.pendingBufferSnapshot = snapshot
             }
 
         case .bell:
@@ -756,6 +793,16 @@ class TerminalViewModel {
             // Terminal alert - show notification
             self.handleTerminalAlert(title: title, message: message)
         }
+    }
+
+    private func markWebSocketReady() {
+        if self.isConnecting {
+            logger.info("Terminal websocket received data; showing renderer")
+        }
+        self.hasSeenWebSocketConnection = true
+        self.isConnected = true
+        self.isConnecting = false
+        self.errorMessage = nil
     }
 
     func sendInput(_ text: String) {
@@ -771,6 +818,21 @@ class TerminalViewModel {
                 logger.error("Failed to send input: \(error)")
             }
         }
+    }
+
+    private func flushPendingTerminalData() {
+        guard let coordinator = terminalCoordinator else { return }
+
+        if let snapshot = pendingBufferSnapshot {
+            coordinator.updateBuffer(from: snapshot)
+            pendingBufferSnapshot = nil
+        }
+
+        guard !pendingOutputData.isEmpty else { return }
+        for data in pendingOutputData {
+            coordinator.feedData(data)
+        }
+        pendingOutputData.removeAll()
     }
 
     func sendSpecialKey(_ key: TerminalInput.SpecialKey) {

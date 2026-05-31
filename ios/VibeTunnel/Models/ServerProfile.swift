@@ -135,6 +135,21 @@ struct ServerProfile: Identifiable, Codable, Equatable {
 
 extension ServerProfile {
     static let storageKey = "savedServerProfiles"
+    static let didSeedDefaultServersKey = "didSeedDefaultServers"
+
+    static let defaultServerProfiles = [
+        ServerProfile(
+            name: "Ubuntu (Tailscale)",
+            url: "https://ubuntu-direct.tailc1d69d.ts.net:8444",
+            host: "ubuntu-direct.tailc1d69d.ts.net",
+            port: 8_444,
+            requiresAuth: true,
+            username: "ubuntu",
+            tailscaleHostname: "ubuntu-direct.tailc1d69d.ts.net",
+            isTailscaleEnabled: true,
+            httpsAvailable: true
+        ),
+    ]
 
     /// Load all saved profiles from UserDefaults
     static func loadAll(from userDefaults: UserDefaults = .standard) -> [ServerProfile] {
@@ -151,6 +166,19 @@ extension ServerProfile {
         if let data = try? JSONEncoder().encode(profiles) {
             userDefaults.set(data, forKey: storageKey)
         }
+    }
+
+    /// Seed built-in server profiles once without replacing user-created entries.
+    static func seedDefaultServersIfNeeded(in userDefaults: UserDefaults = .standard) {
+        guard !userDefaults.bool(forKey: didSeedDefaultServersKey) else { return }
+
+        var profiles = loadAll(from: userDefaults)
+        for defaultProfile in defaultServerProfiles where !profiles.containsDuplicate(of: defaultProfile) {
+            profiles.append(defaultProfile)
+        }
+
+        saveAll(profiles, to: userDefaults)
+        userDefaults.set(true, forKey: didSeedDefaultServersKey)
     }
 
     /// Add or update a profile
@@ -178,6 +206,16 @@ extension ServerProfile {
             profiles[index].lastConnected = Date()
             profiles[index].updatedAt = Date()
             saveAll(profiles, to: userDefaults)
+        }
+    }
+}
+
+private extension [ServerProfile] {
+    func containsDuplicate(of profile: ServerProfile) -> Bool {
+        contains {
+            $0.url == profile.url ||
+                $0.tailscaleHostname == profile.tailscaleHostname ||
+                ($0.host == profile.host && $0.port == profile.port)
         }
     }
 }

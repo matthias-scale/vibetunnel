@@ -66,6 +66,7 @@ struct SessionCardView: View {
                         }
                     })
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("session-card-kill-\(session.id)")
                 }
 
                 // Terminal content area showing command and terminal output preview
@@ -160,6 +161,7 @@ struct SessionCardView: View {
             .brightness(self.brightness)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("session-card-\(session.id)")
         .onLongPressGesture(
             minimumDuration: 0.1,
             maximumDistance: .infinity,

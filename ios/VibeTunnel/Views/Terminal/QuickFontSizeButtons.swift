@@ -22,6 +22,7 @@ struct QuickFontSizeButtons: View {
                             .stroke(Theme.Colors.cardBorder, lineWidth: 1))
             }
             .disabled(self.fontSize <= self.minSize)
+            .accessibilityIdentifier("terminal-font-decrease-button")
 
             // Current size display
             Text("\(Int(self.fontSize))")
@@ -51,6 +52,7 @@ struct QuickFontSizeButtons: View {
                             .stroke(Theme.Colors.cardBorder, lineWidth: 1))
             }
             .disabled(self.fontSize >= self.maxSize)
+            .accessibilityIdentifier("terminal-font-increase-button")
         }
         .background(Theme.Colors.cardBackground)
         .cornerRadius(Theme.CornerRadius.small)

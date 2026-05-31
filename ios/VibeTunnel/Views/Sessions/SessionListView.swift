@@ -48,6 +48,7 @@ struct SessionListView: View {
                 }
             }
             .navigationTitle("Sessions")
+            .accessibilityIdentifier("session-list")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -63,6 +64,7 @@ struct SessionListView: View {
                         }
                         .foregroundColor(Theme.Colors.errorAccent)
                     })
+                    .accessibilityIdentifier("session-list-disconnect-button")
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -86,6 +88,7 @@ struct SessionListView: View {
                                 .font(.title3)
                                 .foregroundColor(Theme.Colors.primaryAccent)
                         }
+                        .accessibilityIdentifier("session-list-menu-button")
 
                         Button(action: {
                             HapticFeedback.impact(.light)
@@ -95,6 +98,7 @@ struct SessionListView: View {
                                 .font(.title3)
                                 .foregroundColor(Theme.Colors.primaryAccent)
                         })
+                        .accessibilityIdentifier("session-list-folder-button")
 
                         Button(action: {
                             HapticFeedback.impact(.light)
@@ -104,6 +108,7 @@ struct SessionListView: View {
                                 .font(.title3)
                                 .foregroundColor(Theme.Colors.primaryAccent)
                         })
+                        .accessibilityIdentifier("session-list-create-session-button")
                     }
                 }
             }

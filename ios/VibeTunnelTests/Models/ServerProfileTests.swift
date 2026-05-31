@@ -153,4 +153,65 @@ struct ServerProfileTests {
         // Cleanup
         testDefaults.removePersistentDomain(forName: "test.serverprofile.time")
     }
+
+    @Test("Seeds default Ubuntu Tailscale server once")
+    func seedDefaultServersOnce() {
+        let suiteName = "test.serverprofile.defaults.\(UUID().uuidString)"
+        let testDefaults = UserDefaults(suiteName: suiteName)!
+        testDefaults.removePersistentDomain(forName: suiteName)
+
+        ServerProfile.seedDefaultServersIfNeeded(in: testDefaults)
+        ServerProfile.seedDefaultServersIfNeeded(in: testDefaults)
+
+        let profiles = ServerProfile.loadAll(from: testDefaults)
+        #expect(profiles.count == 1)
+        #expect(testDefaults.bool(forKey: ServerProfile.didSeedDefaultServersKey))
+
+        let ubuntu = profiles.first { $0.name == "Ubuntu (Tailscale)" }
+        #expect(ubuntu?.url == "https://ubuntu-direct.tailc1d69d.ts.net:8444")
+        #expect(ubuntu?.host == "ubuntu-direct.tailc1d69d.ts.net")
+        #expect(ubuntu?.port == 8_444)
+        #expect(ubuntu?.httpsAvailable == true)
+        #expect(ubuntu?.isTailscaleEnabled == true)
+        #expect(ubuntu?.tailscaleHostname == "ubuntu-direct.tailc1d69d.ts.net")
+        #expect(ubuntu?.requiresAuth == true)
+        #expect(ubuntu?.username == "ubuntu")
+
+        #expect(!profiles.contains { $0.name == "MacBook Pro (Tailscale)" })
+
+        testDefaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test("Default server seeding preserves user profiles and skips duplicates")
+    func seedDefaultServersPreservesExistingProfiles() {
+        let suiteName = "test.serverprofile.defaults.existing.\(UUID().uuidString)"
+        let testDefaults = UserDefaults(suiteName: suiteName)!
+        testDefaults.removePersistentDomain(forName: suiteName)
+
+        let customProfile = ServerProfile(
+            name: "Custom",
+            url: "http://custom.example.com:4020"
+        )
+        let existingUbuntu = ServerProfile(
+            name: "Existing Ubuntu",
+            url: "https://ubuntu-direct.tailc1d69d.ts.net:8444",
+            host: "ubuntu-direct.tailc1d69d.ts.net",
+            port: 8_444,
+            tailscaleHostname: "ubuntu-direct.tailc1d69d.ts.net",
+            isTailscaleEnabled: true,
+            httpsAvailable: true
+        )
+        ServerProfile.saveAll([customProfile, existingUbuntu], to: testDefaults)
+
+        ServerProfile.seedDefaultServersIfNeeded(in: testDefaults)
+
+        let profiles = ServerProfile.loadAll(from: testDefaults)
+        #expect(profiles.count == 2)
+        #expect(profiles.contains { $0.id == customProfile.id && $0.name == "Custom" })
+        #expect(profiles.contains { $0.id == existingUbuntu.id && $0.name == "Existing Ubuntu" })
+        #expect(profiles.filter { $0.tailscaleHostname == "ubuntu-direct.tailc1d69d.ts.net" }.count == 1)
+        #expect(profiles.allSatisfy { $0.tailscaleHostname != "matthiass-macbook-pro.tailc1d69d.ts.net" })
+
+        testDefaults.removePersistentDomain(forName: suiteName)
+    }
 }
