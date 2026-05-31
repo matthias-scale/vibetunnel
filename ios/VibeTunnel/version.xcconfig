@@ -9,4 +9,4 @@ APP_DOMAIN = vibetunnel.sh
 GITHUB_URL = https://github.com/amantus-ai/vibetunnel
 
 // Bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.ios
+PRODUCT_BUNDLE_IDENTIFIER = com.matthiasschedel.vibetunnel

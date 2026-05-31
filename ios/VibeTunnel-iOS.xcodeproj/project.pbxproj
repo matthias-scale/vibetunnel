@@ -330,7 +330,7 @@
 				ENABLE_TESTING_FRAMEWORKS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.ios.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matthiasschedel.vibetunnel.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
@@ -424,7 +424,7 @@
 				ENABLE_TESTING_FRAMEWORKS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sh.vibetunnel.ios.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matthiasschedel.vibetunnel.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;

@@ -1,0 +1,177 @@
+fastlane_version "2.234.0"
+default_platform(:ios)
+
+require "base64"
+require "fileutils"
+require "shellwords"
+require "spaceship"
+require "tmpdir"
+
+def env!(key)
+  value = ENV[key]
+  UI.user_error!("Missing required environment variable: #{key}") if value.nil? || value.strip.empty?
+  value
+end
+
+def app_identifier
+  ENV.fetch("IOS_APP_IDENTIFIER", "com.matthiasschedel.vibetunnel")
+end
+
+def developer_team_id
+  ENV.fetch("DEVELOPER_PORTAL_TEAM_ID", "3ZNPZYZ9JR")
+end
+
+def app_store_connect_team_id
+  ENV.fetch("APP_STORE_CONNECT_TEAM_ID", developer_team_id)
+end
+
+def project_path
+  File.expand_path("..", __dir__)
+end
+
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: env!("ASC_KEY_ID"),
+    issuer_id: env!("ASC_ISSUER_ID"),
+    key_content: env!("ASC_KEY_CONTENT"),
+    is_key_content_base64: true,
+    duration: 1200
+  )
+end
+
+def with_asc_key_file
+  Dir.mktmpdir("vibetunnel-asc-key") do |dir|
+    key_path = File.join(dir, "AuthKey_#{env!("ASC_KEY_ID")}.p8")
+    File.open(key_path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+      file.write(Base64.decode64(env!("ASC_KEY_CONTENT")))
+    end
+    yield key_path
+  end
+end
+
+def xcode_auth_args(key_path)
+  [
+    "-allowProvisioningUpdates",
+    "-authenticationKeyPath #{Shellwords.escape(key_path)}",
+    "-authenticationKeyID #{Shellwords.escape(env!("ASC_KEY_ID"))}",
+    "-authenticationKeyIssuerID #{Shellwords.escape(env!("ASC_ISSUER_ID"))}"
+  ].join(" ")
+end
+
+def ensure_bundle_id!
+  bundle_id = Spaceship::ConnectAPI::BundleId.find(app_identifier)
+  return bundle_id if bundle_id
+
+  UI.message("Creating bundle id #{app_identifier} on Apple Developer Portal")
+  Spaceship::ConnectAPI::BundleId.create(
+    name: ENV.fetch("IOS_APP_NAME", "VibeTunnel"),
+    platform: Spaceship::ConnectAPI::Platform::IOS,
+    identifier: app_identifier,
+    seed_id: nil
+  )
+end
+
+def ensure_asc_app!
+  app = Spaceship::ConnectAPI::App.find(app_identifier)
+  if app
+    UI.success("App #{app_identifier} already exists on App Store Connect (#{app.id})")
+    return app
+  end
+
+  ensure_bundle_id!
+  UI.message("Creating App Store Connect app #{app_identifier}")
+  begin
+    Spaceship::ConnectAPI::App.create(
+      name: ENV.fetch("IOS_APP_NAME", "VibeTunnel"),
+      version_string: ENV.fetch("IOS_APP_VERSION", "1.0.0"),
+      sku: ENV.fetch("IOS_SKU", app_identifier),
+      primary_locale: ENV.fetch("IOS_PRIMARY_LANGUAGE", "en-US"),
+      bundle_id: app_identifier,
+      platforms: [Spaceship::ConnectAPI::Platform::IOS]
+    )
+  rescue => e
+    unless e.to_s.include?("apps") && e.to_s.include?("CREATE")
+      raise
+    end
+
+    username = ENV["FASTLANE_USER"] || ENV["APPLE_ID"]
+    if username.nil? || username.strip.empty?
+      UI.user_error!(
+        "App Store Connect app creation requires Apple ID auth; this ASC API key can list/update apps but cannot create apps. " \
+        "Set FASTLANE_USER or APPLE_ID and run `fastlane ios produce_app`, or create #{app_identifier} in App Store Connect."
+      )
+    end
+
+    produce(
+      username: username,
+      app_identifier: app_identifier,
+      app_name: ENV.fetch("IOS_APP_NAME", "VibeTunnel"),
+      app_version: ENV.fetch("IOS_APP_VERSION", "1.0.0"),
+      sku: ENV.fetch("IOS_SKU", app_identifier),
+      platform: "ios",
+      language: ENV.fetch("IOS_PRIMARY_LANGUAGE", "en-US"),
+      team_id: developer_team_id,
+      skip_devcenter: true,
+      skip_itc: false
+    )
+  end
+
+  20.times do
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    return app if app
+
+    UI.message("Waiting for the newly created app to appear on App Store Connect...")
+    sleep(15)
+  end
+
+  UI.user_error!("Created #{app_identifier}, but it did not appear in App Store Connect in time")
+end
+
+platform :ios do
+  desc "Create or verify the App Store Connect app record"
+  lane :produce_app do
+    asc_api_key
+    ensure_asc_app!
+  end
+
+  desc "Build signed Release archive and upload to TestFlight"
+  lane :beta do
+    api_key = asc_api_key
+    produce_app
+
+    with_asc_key_file do |key_path|
+      auth_args = xcode_auth_args(key_path)
+      build_app(
+        project: "VibeTunnel-iOS.xcodeproj",
+        scheme: "VibeTunnel-iOS",
+        configuration: "Release",
+        clean: true,
+        export_method: "app-store-connect",
+        output_directory: "build/fastlane",
+        output_name: "VibeTunnel.ipa",
+        xcargs: [
+          "DEVELOPMENT_TEAM=#{developer_team_id}",
+          "APP_STORE_CONNECT_TEAM_ID=#{app_store_connect_team_id}",
+          "CODE_SIGN_STYLE=Automatic",
+          "PRODUCT_BUNDLE_IDENTIFIER=#{app_identifier}",
+          auth_args
+        ].join(" "),
+        export_xcargs: auth_args,
+        export_options: {
+          method: "app-store-connect",
+          signingStyle: "automatic",
+          teamID: developer_team_id,
+          manageAppVersionAndBuildNumber: false
+        }
+      )
+    end
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: app_identifier,
+      ipa: "build/fastlane/VibeTunnel.ipa",
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end
