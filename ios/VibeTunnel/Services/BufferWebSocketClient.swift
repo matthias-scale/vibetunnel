@@ -93,14 +93,26 @@ class BufferWebSocketClient: NSObject {
     private var webSocket: WebSocketProtocol?
     private let webSocketFactory: WebSocketFactory
     private var subscriptions = [String: (TerminalWebSocketEvent) -> Void]()
+    private var connectionStateHandlers = [String: (Bool) -> Void]()
     private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempts = 0
+    // Exponential-backoff bounds for reconnection. reconnectAttempts accumulates
+    // across consecutive failures and only resets on a confirmed connection
+    // (see webSocketDidConnect), so the delay actually grows.
+    private let baseReconnectDelay: TimeInterval = 1.0
+    private let maxReconnectDelay: TimeInterval = 30.0
     private var isConnecting = false
     private var pingTask: Task<Void, Never>?
     private(set) var authenticationService: AuthenticationService?
 
-    // Observable properties
-    private(set) var isConnected = false
+    /// Observable properties
+    private(set) var isConnected = false {
+        didSet {
+            guard oldValue != self.isConnected else { return }
+            self.notifyConnectionStateChange()
+        }
+    }
+
     private(set) var connectionError: Error?
 
     private var baseURL: URL? {
@@ -685,6 +697,27 @@ class BufferWebSocketClient: NSObject {
         }
     }
 
+    /// Register a handler that fires whenever the connection state flips.
+    ///
+    /// The handler receives the new `isConnected` value. Used by views (e.g. the
+    /// session list) to re-fetch state after the socket reconnects to a restarted
+    /// server. Register in `onAppear`, remove in `onDisappear` via the same `id`.
+    func onConnectionStateChange(id: String, handler: @escaping (Bool) -> Void) {
+        self.connectionStateHandlers[id] = handler
+    }
+
+    /// Remove a previously registered connection-state handler.
+    func removeConnectionStateHandler(id: String) {
+        self.connectionStateHandlers.removeValue(forKey: id)
+    }
+
+    private func notifyConnectionStateChange() {
+        let state = self.isConnected
+        for handler in self.connectionStateHandlers.values {
+            handler(state)
+        }
+    }
+
     private func sendV3Subscribe(sessionId: String) async throws {
         let flags: UInt32 = V3SubscribeFlags.snapshots.rawValue | V3SubscribeFlags.events.rawValue
         var payload = Data(count: 12)
@@ -831,7 +864,8 @@ class BufferWebSocketClient: NSObject {
     private func scheduleReconnect() {
         guard self.reconnectTask == nil else { return }
 
-        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0)
+        let backoff = min(self.maxReconnectDelay, self.baseReconnectDelay * pow(2.0, Double(self.reconnectAttempts)))
+        let delay = backoff + Double.random(in: 0...0.5) // jitter to avoid thundering-herd reconnects
         self.reconnectAttempts += 1
 
         self.logger.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts))")

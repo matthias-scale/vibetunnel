@@ -9,7 +9,11 @@ import UniformTypeIdentifiers
 struct SessionListView: View {
     @Environment(NavigationManager.self)
     var navigationManager
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SessionListViewModel
+
+    /// Stable id for the buffer WebSocket connection-state handler.
+    private static let connectionHandlerID = "SessionListView"
 
     /// Inject ViewModel directly - clean separation
     init(viewModel: SessionListViewModel = SessionListViewModel()) {
@@ -176,6 +180,23 @@ struct SessionListView: View {
             if let error = newError {
                 self.viewModel.presentedError = IdentifiableError(error: APIError.serverError(0, error))
                 self.viewModel.errorMessage = nil
+            }
+        }
+        .onAppear {
+            // Re-fetch the session list when the buffer socket reconnects (e.g. after a
+            // server restart) — otherwise the list shows stale sessions (GitHub #907).
+            BufferWebSocketClient.shared.onConnectionStateChange(id: Self.connectionHandlerID) { isConnected in
+                guard isConnected else { return }
+                Task { await self.viewModel.loadSessions() }
+            }
+        }
+        .onDisappear {
+            BufferWebSocketClient.shared.removeConnectionStateHandler(id: Self.connectionHandlerID)
+        }
+        .onChange(of: self.scenePhase) { _, newPhase in
+            // Refresh on return to foreground; the list may be stale after backgrounding.
+            if newPhase == .active {
+                Task { await self.viewModel.loadSessions() }
             }
         }
     }
@@ -426,6 +447,15 @@ class SessionListViewModel: SessionListViewModelProtocol {
     var presentedError: IdentifiableError?
     var enableLivePreviews = true
 
+    /// Coalescing guards: the 3s poll, pull-to-refresh, WS-reconnect, and foreground
+    /// refresh can all fire loadSessions() concurrently. isLoading only drives the
+    /// spinner (set when sessions is empty), so it can't serve as the guard. A plain
+    /// drop-if-busy guard would be wrong — a reload requested after killSession/
+    /// cleanupSession must not be lost to an older in-flight fetch — so instead a
+    /// mid-flight request sets reloadPending and runs exactly once more afterwards.
+    private var isReloading = false
+    private var reloadPending = false
+
     private let sessionService: SessionServiceProtocol
     private let networkMonitor: NetworkMonitoring
     private let connectionManager: ConnectionManager
@@ -445,18 +475,31 @@ class SessionListViewModel: SessionListViewModelProtocol {
     }
 
     func loadSessions() async {
-        if self.sessions.isEmpty {
-            self.isLoading = true
+        if self.isReloading {
+            // A fetch is already in flight; ask it to run once more when it finishes
+            // rather than starting a redundant concurrent fetch.
+            self.reloadPending = true
+            return
         }
+        self.isReloading = true
+        defer { self.isReloading = false }
 
-        do {
-            self.sessions = try await self.sessionService.getSessions()
-            self.errorMessage = nil
-        } catch {
-            self.errorMessage = error.localizedDescription
-        }
+        repeat {
+            self.reloadPending = false
 
-        self.isLoading = false
+            if self.sessions.isEmpty {
+                self.isLoading = true
+            }
+
+            do {
+                self.sessions = try await self.sessionService.getSessions()
+                self.errorMessage = nil
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+
+            self.isLoading = false
+        } while self.reloadPending
     }
 
     func killSession(_ sessionId: String) async {
@@ -510,8 +553,13 @@ struct SessionHeaderView: View {
     let onKillAll: () -> Void
     let onCleanupAll: () -> Void
 
-    private var runningCount: Int { self.sessions.count { $0.isRunning } }
-    private var exitedCount: Int { self.sessions.count { !$0.isRunning } }
+    private var runningCount: Int {
+        self.sessions.count { $0.isRunning }
+    }
+
+    private var exitedCount: Int {
+        self.sessions.count { !$0.isRunning }
+    }
 
     var body: some View {
         VStack(spacing: Theme.Spacing.medium) {

@@ -102,6 +102,33 @@ returns nil. Idempotent.
 gone and the `Unable to simultaneously satisfy constraints` spam should stop. This is the one fix
 most worth eyeballing on-device — it uses the ObjC runtime, which needs a real build to validate.
 
+## 4. Session list stale after server restart — P1 (GitHub #907) — FIXED
+
+The iOS session list kept showing stale sessions after the server restarted: the buffer WebSocket
+reconnected but the list was only refreshed by a 3s poll, so killed/respawned sessions lingered.
+
+**Fix** — added a connection-state hook `BufferWebSocketClient.onConnectionStateChange(id:handler:)`
+(fired from an `isConnected` `didSet`). `SessionListView` registers it in `onAppear` / removes it in
+`onDisappear`, and re-fetches via `viewModel.loadSessions()` on reconnect (`isConnected == true`).
+Also added an app-foreground refresh via `@Environment(\.scenePhase)` `.onChange` → reload on
+`.active`, and a coalescing guard (`isReloading` + `reloadPending`) on
+`SessionListViewModel.loadSessions()` so the poll, pull-to-refresh, reconnect, and foreground
+triggers can't stack concurrent fetches — while a reload requested mid-flight (e.g. after
+killSession) still runs once more, so post-mutation data is never dropped.
+
+**Verify on Mac**: build the simulator target; restart the server while the list is open and confirm
+it re-fetches immediately on reconnect (not after the 3s poll), and refreshes on return to foreground.
+
+## 5. WebSocket reconnect backoff — P2 — FIXED
+
+`BufferWebSocketClient.scheduleReconnect()` already accumulated exponential backoff
+(`reconnectAttempts` resets only on a confirmed connection), but used bare magic numbers and no
+jitter. Added named constants `baseReconnectDelay = 1.0` / `maxReconnectDelay = 30.0` and a
+`Double.random(in: 0...0.5)` jitter term to avoid thundering-herd reconnects. The "unconditional
+`reconnectAttempts = 0` inside the timer closure" latent bug noted in the original triage was already
+absent on this branch — the only reset lives in the connected path (`webSocketDidConnect`), so no
+removal was needed.
+
 ---
 
 ## Triaged benign — confirmed noise, intentionally NOT "fixed"
@@ -128,3 +155,5 @@ Chasing any of these would waste effort and risk regressions; left as-is by desi
 | `ios/VibeTunnel/Resources/Assets.xcassets/AppIconImage.imageset/*` | app icon (new) |
 | `ios/VibeTunnel/Views/Welcome/WelcomeView.swift` | app icon |
 | `ios/VibeTunnel/Views/Settings/SettingsView.swift` | app icon |
+| `ios/VibeTunnel/Services/BufferWebSocketClient.swift` | reconnect backoff + connection-state hook |
+| `ios/VibeTunnel/Views/Sessions/SessionListView.swift` | session-list refresh on reconnect/foreground |
